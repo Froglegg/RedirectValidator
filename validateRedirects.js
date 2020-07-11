@@ -3,12 +3,12 @@ const axios = require("axios");
 const Promise = require("bluebird");
 
 fs = require("fs");
-const workbook = XLSX.readFile("./in/redirects.xlsx");
+const workbook = XLSX.readFile("./in/someSpreadsheet.xlsx");
 const sheet_name_list = workbook.SheetNames;
 
 const xlData = XLSX.utils.sheet_to_json(workbook.Sheets[sheet_name_list[0]]);
 
-const rootUrl = "";
+const rootUrl = "https://www.w3.org";
 
 let errors = 0;
 let success = 0;
@@ -20,115 +20,98 @@ let failureArray = [
     TO: "",
     CODE: "",
     NUMBER_OF_REDIRECTS: "",
-    BAD_URL: "",
     ERROR_MESSAGE: "",
+    REQ_URL: "",
   },
 ];
 console.time("Total Time");
+
 Promise.map(
   xlData,
+
   async (col, idx) => {
-    console.log(`Process: ${count}, Row ${idx + 1}`);
+    console.log(`Process: ${count}, Row ${idx + 2}`);
     count++;
     let obj;
 
-    const from = col["FROM"];
-    const to = col["TO"];
+    const from = col["source"];
+    const to = col["target"];
 
-    if (idx === 0) {
-      obj = {
-        ...col,
-        ["__EMPTY_7"]: "Failure",
-        ["__EMPTY_8"]: "Response Code",
-        ["__EMPTY_9"]: "Number of Redirects",
-        ["__EMPTY_10"]: "Redirect URL != Target",
-      };
-    } else {
-      let failure = false;
-      let responseCode = "";
-      let numberOfRedirects;
-      let wrongRedirectUrl = false;
+    let failure = false;
+    let responseCode = "";
+    let numberOfRedirects;
 
-      obj = await axios(encodeURI(`${rootUrl}${from}`))
-        .then((response) => {
-          success++;
-          if (
-            response.request.path !== to &&
-            response.request.path !== `${to}/`
-          ) {
-            wrongRedirectUrl = true;
-          }
+    obj = await axios(encodeURI(`${rootUrl}${from}`))
+      .then((response) => {
+        success++;
 
-          responseCode = response.status;
+        responseCode = response.status ? response.status : "";
 
-          failure = response.status !== 200 ? true : false;
-          numberOfRedirects = response.request._redirectable._redirectCount;
+        failure = false;
 
-          return {
-            ...col,
-            ["__EMPTY_7"]: failure,
-            ["__EMPTY_8"]: responseCode,
-            ["__EMPTY_9"]: numberOfRedirects,
-            ["__EMPTY_10"]: wrongRedirectUrl,
-          };
-        })
-        .catch((err) => {
-          console.log(`ROW: ${idx + 2}, ERROR:${err.message}`);
-          errors++;
-          const response = err.response ? err.response : "";
+        numberOfRedirects =
+          response && response.request && response.request._redirectable
+            ? response.request._redirectable._redirectCount
+            : "";
 
-          if (
-            response &&
-            response.request.path !== to &&
-            response.request.path !== `${to}/`
-          ) {
-            wrongRedirectUrl = true;
-          }
+        return {
+          ...col,
+          ["Failure"]: failure,
+          ["Response Code"]: responseCode,
+          ["Number of Redirects"]: numberOfRedirects,
+        };
+      })
+      .catch((err) => {
+        console.log(`ROW: ${idx + 2}, ERROR:${err.message}`);
+        errors++;
+        const response = err.response ? err.response : "";
 
-          responseCode = response.status ? response.status : "N/A";
+        failure = true;
 
-          failure = response.status !== 200 ? true : false;
-          //   if (idx === whatever row you want to validate) {
-          //     fs.writeFile(
-          //       "testJson.json",
-          //       JSON.safeStringify(response),
-          //       function (err) {
-          //         if (err) return console.log(err);
-          //       }
-          //     );
-          //   }
-          numberOfRedirects =
-            response && response.request && response.request._redirectable
-              ? response.request._redirectable._redirectCount
-              : 0;
+        //   if (idx === whatever row you want to validate) {
+        //     fs.writeFile(
+        //       "testJson.json",
+        //       JSON.safeStringify(response),
+        //       function (err) {
+        //         if (err) return console.log(err);
+        //       }
+        //     );
+        //   }
 
-          failureArray.push({
-            ROW: idx + 2,
-            FROM: from,
-            TO: to,
-            CODE: response.status,
-            NUMBER_OF_REDIRECTS: numberOfRedirects,
-            BAD_URL: wrongRedirectUrl,
-            ERROR_MESSAGE: err.message ? err.message : "",
-          });
+        numberOfRedirects =
+          response && response.request && response.request._redirectable
+            ? response.request._redirectable._redirectCount
+            : "";
 
-          return {
-            ...col,
-            ["__EMPTY_7"]: failure,
-            ["__EMPTY_8"]: responseCode,
-            ["__EMPTY_9"]: numberOfRedirects,
-            ["__EMPTY_10"]: wrongRedirectUrl,
-          };
+        failureArray.push({
+          ROW: idx + 2,
+          FROM: from,
+          TO: to,
+          CODE: response && response.status ? response.status : "",
+          NUMBER_OF_REDIRECTS: numberOfRedirects,
+          ERROR_MESSAGE: err.message ? err.message : "",
+          REQ_URL:
+            response.request && response.request.path
+              ? response.request.path
+              : "",
         });
-    }
+
+        return {
+          ...col,
+          ["Failure"]: failure,
+          ["Response Code"]: response && response.status ? response.status : "",
+          ["Number of Redirects"]: numberOfRedirects,
+        };
+      });
+
     return obj;
   },
   { concurrency: 10 }
 ).then((data) => {
   const output = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, output, "testSheet");
-  XLSX.writeFile(wb, "./out/example.xlsx");
+  XLSX.utils.book_append_sheet(wb, output, "All Redirects");
+  XLSX.writeFile(wb, "./out/allRedirects.xlsx");
 
   const failureOutput = XLSX.utils.json_to_sheet(failureArray);
   const failBook = XLSX.utils.book_new();
