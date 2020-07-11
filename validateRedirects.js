@@ -3,7 +3,7 @@ const axios = require("axios");
 const Promise = require("bluebird");
 
 fs = require("fs");
-const workbook = XLSX.readFile("./in/careRedirects.xlsx");
+const workbook = XLSX.readFile("./in/redirects.xlsx");
 const sheet_name_list = workbook.SheetNames;
 
 const xlData = XLSX.utils.sheet_to_json(workbook.Sheets[sheet_name_list[0]]);
