@@ -4,7 +4,7 @@
   "description": "Node.js tool using SheetJS to parse and export spreadsheets, as well as axios to validate redirect from / to, response status, etc.",
   "main": "validateRedirects.js",
   "dependencies": {
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "bluebird": "^3.7.2",
     "xlsx": "^0.16.3"
   },
